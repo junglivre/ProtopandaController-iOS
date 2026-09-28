@@ -234,6 +234,16 @@ Regras de fronteira:
 > aparece, e o app cai assim que `scenePhase` vira `.active` e `startSession()` cria o
 > `CBPeripheralManager`. Correção: remover o bloco `info:` do alvo e apontar `INFOPLIST_FILE`
 > direto para o arquivo em `settings.base`, com `GENERATE_INFOPLIST_FILE: NO`.
+> (4) **Localização (en/pt-BR) não aparecia no app — todo texto mostrava a chave literal.**
+> XcodeGen não tem chave `resources:` no schema de `Target` (confirmado na fonte:
+> [ProjectSpec.md](https://github.com/yonaskolb/XcodeGen/blob/master/Docs/ProjectSpec.md) só lista
+> `sources:`); qualquer `resources:` no `project.yml` é ignorado silenciosamente — nem
+> `Assets.xcassets` estava sendo copiado pro bundle. Apontar `sources:` direto para os `.lproj`
+> como itens-folha (`Resources/en.lproj`, `Resources/pt-BR.lproj`) também não funciona: o
+> `project.pbxproj` gerado não ganhava nenhuma referência a esses arquivos. A forma que
+> funciona é listar a pasta **pai** que contém os `.lproj` (`Resources`) em `sources:`, deixando o
+> XcodeGen escanear e agrupar os arquivos por localização. Confirmado inspecionando
+> `project.pbxproj` gerado e o conteúdo real do `.app` compilado na CI antes de cada tentativa.
 
 
 ## 9. Requisitos de plataforma, privacidade e distribuição

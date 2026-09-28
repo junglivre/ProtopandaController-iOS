@@ -36,16 +36,6 @@ jobs:
         working-directory: App
         run: xcodegen generate
 
-      - name: Diagnose generated project (resources build phase)
-        working-directory: App
-        run: |
-          set -eu
-          PBX="ProtopandaController.xcodeproj/project.pbxproj"
-          echo "--- References to our resource files in project.pbxproj ---"
-          grep -n "Localizable.strings\|Assets.xcassets\|InfoPlist.strings" "$PBX" || echo "NONE FOUND"
-          echo "--- PBXResourcesBuildPhase section ---"
-          awk '/Begin PBXResourcesBuildPhase/,/End PBXResourcesBuildPhase/' "$PBX"
-
       - name: Resolve Swift package dependencies
         working-directory: App
         run: >
