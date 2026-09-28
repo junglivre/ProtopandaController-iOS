@@ -34,7 +34,6 @@ The simulator is not part of this pipeline: Core Bluetooth peripheral mode, adve
 
 ## Known gaps in this first version
 
-- No app icon asset yet (placeholder `AppIcon.appiconset` with no image; Xcode will warn, the app is still installable).
 - No automated UI tests; `docs/ios-foreground-port.md` §11 lists the manual acceptance matrix (P01–P13) to run against a real Protopanda receiver.
 - Background BLE, lock-screen operation, and Core Bluetooth state restoration are explicitly out of scope for this version (§13 of the spec).
 

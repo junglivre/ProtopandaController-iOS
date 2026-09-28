@@ -18,3 +18,11 @@ All notable changes to this project are documented in this file.
     Linux, and an unsigned-IPA build via `xcodebuild` on a `macos-latest` runner, uploaded
     as a workflow artifact for SideStore sideloading.
   - `docs/ios-foreground-port.md`, `PRIVACY.md`, and bilingual READMEs.
+- App icon: the official Protopanda Play Store icon
+  (`fastlane/metadata/android/en-US/images/icon.png` from the Android repo), upscaled to
+  an opaque 1024×1024 PNG, for visual consistency across both apps. `CFBundleName` also
+  set to the literal "Protopanda Controller" (not just `CFBundleDisplayName`), so the app
+  name shows correctly everywhere regardless of which key a given sideloading tool reads.
+- Localization (English/Portuguese), a real "quit app" action, and GitHub Release
+  publishing tagged with the short commit SHA (raw, unzipped `.ipa` asset for sideloading
+  directly from an iPhone).

@@ -34,7 +34,6 @@ O simulador não faz parte deste pipeline: periférico Core Bluetooth, advertisi
 
 ## Lacunas conhecidas nesta primeira versão
 
-- Sem ícone de app ainda (placeholder `AppIcon.appiconset` sem imagem; o Xcode avisa, mas o app instala normalmente).
 - Sem testes de UI automatizados; `docs/ios-foreground-port.md` §11 lista a matriz de aceite manual (P01–P13) para rodar contra um receptor Protopanda real.
 - BLE em background, operação com tela bloqueada e restauração de estado do Core Bluetooth ficam fora do escopo desta versão (§13 da especificação).
 
