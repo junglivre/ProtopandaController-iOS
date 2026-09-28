@@ -1,0 +1,116 @@
+name: Release
+
+# Push a semantic-version tag, for example: git tag 1.0.0 && git push origin 1.0.0
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+
+env:
+  VERSION: ${{ github.ref_name }}
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: Core package tests (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "5.10"
+      - name: swift test
+        working-directory: ProtopandaControllerCore
+        run: swift test
+
+  create_release:
+    name: Create GitHub release
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Extract release notes
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+
+          version = os.environ["VERSION"]
+          content = open("CHANGELOG.md", encoding="utf-8").read()
+          pattern = rf"^## \[{re.escape(version)}\].*?(?=^## \[|\Z)"
+          match = re.search(pattern, content, re.S | re.M)
+          with open("release_notes.md", "w", encoding="utf-8") as notes:
+              notes.write(match.group(0).strip() if match else f"Release {version}")
+          PY
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$VERSION" --title "$VERSION" --notes-file release_notes.md --verify-tag
+
+  build_ios:
+    name: Build and publish unsigned IPA
+    needs: create_release
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: App
+        run: xcodegen generate
+
+      - name: Resolve Swift package dependencies
+        working-directory: App
+        run: >
+          xcodebuild -resolvePackageDependencies
+          -project ProtopandaController.xcodeproj
+          -scheme ProtopandaController
+
+      - name: Build unsigned app for iOS devices
+        working-directory: App
+        run: |
+          xcodebuild build \
+            -project ProtopandaController.xcodeproj \
+            -scheme ProtopandaController \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath build \
+            MARKETING_VERSION="$VERSION" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Verify compiled Info.plist keys
+        working-directory: App
+        run: |
+          set -eu
+          PLIST="build/Build/Products/Release-iphoneos/ProtopandaController.app/Info.plist"
+          for KEY in NSBluetoothAlwaysUsageDescription NSMotionUsageDescription CFBundleIdentifier; do
+            if ! plutil -extract "$KEY" raw "$PLIST" >/dev/null 2>&1; then
+              echo "::error::Missing required Info.plist key: $KEY"
+              exit 1
+            fi
+          done
+          if ! plutil -extract UIBackgroundModes json -o - "$PLIST" | grep -q "bluetooth-peripheral"; then
+            echo "::error::UIBackgroundModes is missing bluetooth-peripheral"
+            exit 1
+          fi
+
+      - name: Package IPA
+        working-directory: App
+        run: |
+          set -eu
+          APP_PATH="build/Build/Products/Release-iphoneos/ProtopandaController.app"
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
+          zip -r ProtopandaController-unsigned.ipa Payload
+
+      - name: Upload release artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$VERSION" "App/ProtopandaController-unsigned.ipa#ProtopandaController-${VERSION}-unsigned.ipa" --clobber

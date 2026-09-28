@@ -1,0 +1,2 @@
+"NSBluetoothAlwaysUsageDescription" = "O Protopanda Controller usa Bluetooth para se conectar diretamente ao receptor Protopanda, sem servidores intermediários.";
+"NSMotionUsageDescription" = "O Protopanda Controller usa o acelerômetro e o giroscópio do iPhone para os controles de movimento do Protopanda.";

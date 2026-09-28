@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  core-tests:
+    name: Core package tests (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "5.10"
+      - name: swift test
+        working-directory: ProtopandaControllerCore
+        run: swift test
+
+  ios-build:
+    name: Build unsigned IPA (macOS)
+    runs-on: macos-latest
+    needs: core-tests
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: App
+        run: xcodegen generate
+
+      - name: Resolve Swift package dependencies
+        working-directory: App
+        run: >
+          xcodebuild -resolvePackageDependencies
+          -project ProtopandaController.xcodeproj
+          -scheme ProtopandaController
+
+      - name: Build unsigned app for iOS devices
+        working-directory: App
+        run: |
+          xcodebuild build \
+            -project ProtopandaController.xcodeproj \
+            -scheme ProtopandaController \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Verify compiled Info.plist keys
+        working-directory: App
+        run: |
+          set -eu
+          PLIST="build/Build/Products/Release-iphoneos/ProtopandaController.app/Info.plist"
+          echo "--- Compiled Info.plist ---"
+          plutil -p "$PLIST"
+          for KEY in NSBluetoothAlwaysUsageDescription NSMotionUsageDescription CFBundleIdentifier; do
+            if ! plutil -extract "$KEY" raw "$PLIST" >/dev/null 2>&1; then
+              echo "::error::Missing required Info.plist key: $KEY"
+              exit 1
+            fi
+          done
+          if ! plutil -extract UIBackgroundModes json -o - "$PLIST" | grep -q "bluetooth-peripheral"; then
+            echo "::error::UIBackgroundModes is missing bluetooth-peripheral"
+            exit 1
+          fi
+
+      - name: Verify localized resources sit at the bundle root
+        working-directory: App
+        run: |
+          set -eu
+          APP="build/Build/Products/Release-iphoneos/ProtopandaController.app"
+          echo "--- Top-level bundle contents ---"
+          ls -la "$APP"
+          for LOCALE in en pt-BR; do
+            STRINGS="$APP/$LOCALE.lproj/Localizable.strings"
+            if [ ! -f "$STRINGS" ]; then
+              echo "::error::Missing $STRINGS — localization resources are not at the bundle root"
+              exit 1
+            fi
+            echo "--- $LOCALE.lproj/Localizable.strings (sample) ---"
+            plutil -p "$STRINGS" | head -5
+          done
+
+      - name: Package IPA
+        working-directory: App
+        run: |
+          set -eu
+          APP_PATH="build/Build/Products/Release-iphoneos/ProtopandaController.app"
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
+          zip -r ProtopandaController-unsigned.ipa Payload
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ProtopandaController-unsigned-ipa
+          path: App/ProtopandaController-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 14

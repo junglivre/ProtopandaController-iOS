@@ -1,0 +1,40 @@
+/* Barra de status */
+"status.idle" = "Aguardando conexão…";
+"status.advertising" = "Anunciando…";
+"status.connected_awaiting_id" = "Conectado · aguardando ID…";
+"status.connected_id" = "Conectado · ID %d";
+"status.bluetooth_off" = "Bluetooth está desligado";
+"status.bluetooth_unauthorized" = "Permissão de Bluetooth negada";
+"status.bluetooth_unsupported" = "Este iPhone não suporta periférico BLE";
+"status.service_registration_failed" = "Falha ao publicar serviço GATT";
+"status.advertising_failed" = "Falha ao anunciar: %@";
+
+/* Leituras IMU */
+"imu.sensors_unavailable" = "Sensores indisponíveis neste iPhone";
+
+/* Ações do cabeçalho */
+"action.quit_app_title" = "Fechar o Protopanda Controller?";
+"action.quit_app_message" = "Isso fecha o app completamente e desconecta o periférico BLE.";
+"action.quit" = "Fechar";
+"action.cancel" = "Cancelar";
+
+/* Configurações */
+"settings.title" = "Configurações";
+"settings.section_identity" = "Identidade BLE";
+"settings.field_service" = "Serviço";
+"settings.field_read_write" = "Leitura/Escrita";
+"settings.field_notify" = "Notificação";
+"settings.save" = "Salvar";
+"settings.restore_defaults" = "Restaurar Padrões";
+"settings.section_about" = "Sobre";
+"settings.version" = "Versão %@";
+"settings.repository_link" = "Repositório no GitHub";
+"settings.section_credits" = "Créditos";
+"settings.credit_goodu" = "GooDDu — primeira versão do app Android";
+"settings.credit_mockthebear" = "mockthebear — criador do Protopanda";
+"settings.credit_junglivre" = "junglivre — porte iOS e melhorias do app Android";
+"settings.close" = "Fechar";
+"settings.error_invalid_service_uuid" = "UUID de serviço inválido.";
+"settings.error_invalid_read_write_uuid" = "UUID de leitura/escrita inválido.";
+"settings.error_invalid_notify_uuid" = "UUID de notificação inválido.";
+"settings.error_duplicate_uuids" = "Os três UUIDs precisam ser diferentes.";
