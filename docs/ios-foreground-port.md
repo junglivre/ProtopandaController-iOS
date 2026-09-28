@@ -218,6 +218,12 @@ Regras de fronteira:
 > na mesma fila usada na inicialização, e manter tudo na main actor evita qualquer salto entre
 > filas/atores. `ControllerInputState` continua sendo o ponto único e thread-safe (via `NSLock`)
 > onde sensores, botões e BLE se encontram.
+> Cuidados de compilação já observados na CI: (1) `SWIFT_VERSION` no `project.yml` precisa ser
+> um token literal aceito (`"5"`), nunca `"5.0"` — o valor fracionário não é reconhecido e o
+> compilador cai em modo Swift 6, tornando erro o que seria apenas aviso de concorrência para
+> essa conformação de delegate. (2) `LabeledContent` só existe a partir do iOS 16; com
+> deployment target 15, usar um layout manual (rótulo + campo) nas telas de configuração.
+
 
 ## 9. Requisitos de plataforma, privacidade e distribuição
 

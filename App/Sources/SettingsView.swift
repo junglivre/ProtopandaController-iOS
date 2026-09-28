@@ -14,24 +14,9 @@ struct SettingsView: View {
         NavigationView {
             Form {
                 Section("Identidade BLE") {
-                    LabeledContent("Serviço") {
-                        TextField("UUID", text: $serviceText)
-                            .font(.system(.body, design: .monospaced))
-                            .autocorrectionDisabled()
-                            .textInputAutocapitalization(.never)
-                    }
-                    LabeledContent("Leitura/escrita") {
-                        TextField("UUID", text: $readWriteText)
-                            .font(.system(.body, design: .monospaced))
-                            .autocorrectionDisabled()
-                            .textInputAutocapitalization(.never)
-                    }
-                    LabeledContent("Notificação") {
-                        TextField("UUID", text: $notifyText)
-                            .font(.system(.body, design: .monospaced))
-                            .autocorrectionDisabled()
-                            .textInputAutocapitalization(.never)
-                    }
+                    uuidField("Serviço", text: $serviceText)
+                    uuidField("Leitura/escrita", text: $readWriteText)
+                    uuidField("Notificação", text: $notifyText)
                     if let errorMessage {
                         Text(errorMessage)
                             .foregroundStyle(.red)
@@ -62,6 +47,20 @@ struct SettingsView: View {
                 }
             }
             .onAppear { populate(with: viewModel.identity) }
+        }
+    }
+
+    /// Manual label-above-field row, since `LabeledContent` requires iOS 16+ and this app
+    /// targets iOS 15.
+    private func uuidField(_ label: String, text: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            TextField("UUID", text: text)
+                .font(.system(.body, design: .monospaced))
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
         }
     }
 
