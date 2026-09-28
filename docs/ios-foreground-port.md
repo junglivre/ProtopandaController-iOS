@@ -1,6 +1,7 @@
-# Port iOS — versão foreground-only
+# Port iOS — sessão BLE persistente em background
 
-**Status:** especificação aprovada para implementação inicial. Espelhada de
+**Status:** pivô deliberado a partir da versão foreground-only original (implementação
+aprovada). Espelhada de
 [`junglivre/ProtopandaController`](https://github.com/junglivre/ProtopandaController), o app
 Android original.
 
@@ -8,9 +9,9 @@ Android original.
 
 Criar um app iOS nativo em Swift que atua como periférico Bluetooth Low Energy (BLE) para um receptor Protopanda, mantendo o protocolo GATT e o formato do pacote do Android.
 
-A primeira versão funciona somente enquanto o app está em primeiro plano e ativo. Ao perder o primeiro plano, bloquear a tela ou encerrar a sessão do controlador, ela interrompe a captura de sensores, as notificações e o advertising. Não declara `bluetooth-peripheral` em `UIBackgroundModes` e não implementa restauração de estado BLE nesta fase.
+**Histórico da decisão:** a primeira versão era estritamente foreground-only (parava a sessão BLE inteira ao sair de primeiro plano). Em teste com hardware real, isso causava um defeito reproduzível: sair do app por mais de poucos segundos fazia o receptor Protopanda atribuir um novo ID de controlador na reconexão, deixando o ID anterior travado e inutilizável, e o iPhone continuava mostrando um dispositivo sem nome como "conectado" em Ajustes > Bluetooth mesmo após o app remover os serviços GATT — evidência de que a conexão de baixo nível sobrevivia ao teardown do app, fora do controle do app, até o firmware do receptor decidir por conta própria que o slot antigo expirou. Uma mitigação parcial (desalocar o `CBPeripheralManager` no teardown) não eliminou o problema. A decisão agora é declarar `bluetooth-peripheral` em `UIBackgroundModes` e manter a sessão GATT/conexão viva independente do `scenePhase`, para que o ID do controlador não fique instável a cada troca de app.
 
-Essa decisão elimina o maior risco do port: o iOS reduz ou altera o comportamento de advertising em background e não oferece um equivalente ao foreground service Android. A Apple exige o modo `bluetooth-peripheral` para processar eventos de read, write e subscription em background; mesmo com esse modo, o sistema pode suspender ou encerrar o app. Fonte: [Core Bluetooth Background Processing for iOS Apps](https://developer.apple.com/library/archive/documentation/NetworkingInternetWeb/Conceptual/CoreBluetooth_concepts/CoreBluetoothBackgroundProcessingForIOSApps/PerformingTasksWhileYourAppIsInTheBackground.html).
+Essa mudança **não** resolve tudo: sensores de movimento (`CMMotionManager`) e toque na tela continuam exigindo o app em primeiro plano — não existe modo de background para leitura contínua de acelerômetro/giroscópio equivalente ao `bluetooth-peripheral`. Em background, a conexão e o ID do controlador persistem, mas os comandos de movimento/botão ficam congelados no último estado conhecido até o app voltar ao primeiro plano. A Apple documenta que, mesmo com o modo `bluetooth-peripheral`, o sistema pode suspender ou encerrar o app sob pressão de memória — por isso a implementação também usa o mecanismo de restauração de estado do Core Bluetooth (`CBPeripheralManagerOptionRestoreIdentifierKey` + `willRestoreState`) para o caso do processo ser efetivamente encerrado e relançado pelo sistema. Fonte: [Core Bluetooth Background Processing for iOS Apps](https://developer.apple.com/library/archive/documentation/NetworkingInternetWeb/Conceptual/CoreBluetooth_concepts/CoreBluetoothBackgroundProcessingForIOSApps/PerformingTasksWhileYourAppIsInTheBackground.html).
 
 ## 2. Briefing
 
@@ -21,13 +22,13 @@ A plataforma Protopanda precisa de um controle remoto por BLE. O controlador atu
 ### Público e contexto de uso
 
 - Pessoa com um iPhone compatível com BLE e um receptor Protopanda.
-- Uso interativo, com o controlador aberto e visível na tela.
+- Uso interativo, com o controlador aberto e visível na tela para mover o Proto; a conexão BLE em si pode sobreviver a trocas breves de app.
 - O receptor atua como central BLE e conhece o UUID do serviço.
 - Não há conta, backend, login, telemetria ou pareamento manual dentro do app.
 
 ### Resultado esperado
 
-Com o app aberto, o receptor encontra o iPhone pelo UUID de serviço, conecta, escreve o ID do controle e recebe, a cada 50 ms, os mesmos 23 bytes que recebe do Android. Toques e movimentos do iPhone alteram o pacote de forma compatível com o firmware existente.
+Com o app aberto, o receptor encontra o iPhone pelo UUID de serviço, conecta, escreve o ID do controle e recebe, a cada 50 ms, os mesmos 23 bytes que recebe do Android. Toques e movimentos do iPhone alteram o pacote de forma compatível com o firmware existente. Ao alternar para outro app ou bloquear a tela por um período curto, a conexão e o ID atribuído permanecem os mesmos quando o usuário volta — só o envio de dados novos de movimento/botão fica pausado nesse intervalo.
 
 ## 3. Escopo
 
@@ -39,26 +40,27 @@ Com o app aberto, o receptor encontra o iPhone pelo UUID de serviço, conecta, e
 - Advertising conectável, sem nome local do dispositivo e contendo o UUID de serviço.
 - Leitura e escrita da característica de ID.
 - Característica de dados com leitura, subscribe e notify.
-- Notificações com período nominal de 50 ms enquanto há central inscrito e ID válido.
+- Notificações com período nominal de 50 ms enquanto há central inscrito, ID válido e o app está em primeiro plano.
 - D-pad multitouch: direções, `OK`, `BACK`, `L1` e `R1`.
 - Acelerômetro e giroscópio, com as mesmas escalas, filtro e limites do Android.
 - Estado visual de advertising, conexão, espera por ID e erro de Bluetooth.
 - Tela de configurações para os três UUIDs, restauração dos padrões e links de créditos/repositório.
 - Persistência local dos UUIDs.
-- Operação somente no primeiro plano.
+- **Modo de background `bluetooth-peripheral`:** a sessão GATT, o advertising e a subscription do central persistem independente do `scenePhase`; só o timer de notify e os sensores pausam.
+- **Restauração de estado do Core Bluetooth** (`CBPeripheralManagerOptionRestoreIdentifierKey` + `willRestoreState`) para o caso do sistema encerrar e relançar o processo.
 - Localização em inglês e português (pt-BR), seguindo o idioma do sistema, sem seletor manual no app.
-- Botão de fechar mata o processo (`exit(0)`) após confirmação, em vez de só parar a sessão BLE (ver §7).
+- Botão de fechar mata o processo (`exit(0)`) após confirmação, e agora encerra explicitamente a sessão BLE antes de sair (ver §7).
 - Política de privacidade específica para iOS antes da distribuição.
 
 ### Fora de escopo
 
-- BLE em background, com tela bloqueada ou após o sistema suspender/encerrar o processo.
-- Restauração de estado de `CBPeripheralManager`.
-- Tentativa de manter sensores ou notificações após `scenePhase` deixar `.active`.
+- Sensores de movimento ou entrada por toque funcionando com o app fora do primeiro plano — não existe modo de background equivalente ao `bluetooth-peripheral` para `CMMotionManager`.
+- Garantia de que o app sobrevive indefinidamente em background sob pressão de memória; a restauração de estado cobre o caso de relançamento, mas não impede o sistema de encerrar o processo.
 - Suporte a central BLE além do receptor Protopanda.
 - Contas, rede, analytics, notificações push e backend.
 - Download de avatares dos créditos. A tela iOS usa imagens incluídas no bundle ou apenas texto, sem acesso à rede.
 - Portar a estrutura Android, Gradle, services, permissões Android ou o processo de encerrar o app.
+
 
 ## 4. Referência comportamental Android
 
@@ -172,12 +174,15 @@ right=0, down=1, left=2, up=3, ok=4, back=5, l1=6, r1=7
 - Restaurar os três valores padrão.
 - Mostrar versão, repositório e créditos.
 
-### Primeiro plano
+### Ciclo de vida (background)
 
-- A sessão inicia somente depois de `CBPeripheralManager` informar estado `.poweredOn` e a tela estar ativa.
-- Em `.inactive` ou `.background`, parar atualizações do `CMMotionManager`, parar o timer de notify e parar advertising. Desconexões durante a suspensão não são tratadas como continuidade de sessão.
-- Ao voltar a `.active`, recriar/publicar o GATT se necessário e iniciar advertising se não houver central conectado.
-- Se Bluetooth ficar indisponível, limpar conexão, subscription e ID; mostrar o erro. Se voltar a `.poweredOn` com a tela ativa, publicar e anunciar de novo.
+- A sessão BLE inicia uma única vez, em `ControllerViewModel.init()`, assim que `CBPeripheralManager` é criado — não depende mais de `scenePhase`.
+- Em `.active`: `MotionController.start()` e `bleController.resumeOutgoingNotificationsIfNeeded()` retomam sensores e o timer de notify.
+- Em `.inactive` ou `.background`: `MotionController.stop()` e `bleController.pauseOutgoingNotifications()` param sensores e o timer de notify. A sessão GATT, o advertising e a subscription do central **não** são tocados — a conexão sobrevive à troca de app.
+- `stopSession()` (teardown completo: remove serviços, para advertising, desaloca o `CBPeripheralManager`) só roda em `quitApp()`, no encerramento explícito do usuário.
+- Se o sistema encerrar o processo por pressão de memória enquanto o app está em background, `bluetooth-peripheral` permite que o iOS relance o app para atender a um evento BLE; `peripheralManager(_:willRestoreState:)` recupera o serviço/característica publicados e o central já inscrito (via `subscribedCentrals` da característica restaurada), evitando um novo ciclo completo de descoberta.
+- Se Bluetooth ficar indisponível, limpar conexão, subscription e ID; mostrar o erro. Se voltar a `.poweredOn`, publicar e anunciar de novo, independente do app estar em primeiro ou segundo plano.
+- **Limite conhecido:** não existe forma de o app forçar a desconexão de um central (`CBPeripheralManager` não expõe essa API). Uma conexão que trava por outro motivo (ex.: o próprio receptor travar) só se resolve quando um dos dois lados decide encerrar o link.
 
 ## 8. Arquitetura proposta
 
@@ -252,7 +257,7 @@ Regras de fronteira:
 - Testar em iPhone físico que suporte BLE peripheral; simulador não valida advertising, GATT peripheral nem sensores reais.
 - Declarar `NSBluetoothAlwaysUsageDescription`, com texto que explique a conexão direta com o receptor Protopanda.
 - Declarar `NSMotionUsageDescription`, com texto que explique os controles de movimento, se a versão/iOS exigir a chave para Core Motion.
-- Não incluir `UIBackgroundModes` nesta versão.
+- Declarar `UIBackgroundModes: [bluetooth-peripheral]`. Nenhum outro modo de background é necessário ou usado.
 - Não solicitar contatos, fotos, microfone, localização, notificações, rede celular ou tracking.
 - Não incluir SDKs de analytics, publicidade, crash reporting remoto ou backend.
 - Guardar somente os três UUIDs em `UserDefaults`.
@@ -344,11 +349,13 @@ TestFlight e App Store continuam possíveis sem Mac próprio, mas exigem uma con
 | O receptor não encontra advertising do iPhone | Validar P02 primeiro, com o receptor real. A descoberta por UUID é o contrato crítico. |
 | Eixos iOS diferem da orientação Android | Comparar P08 com o mesmo movimento físico e ajustar somente após medir a divergência. |
 | `updateValue` aplica backpressure | Manter apenas o frame atual; nunca enfileirar estado antigo. |
-| Tela bloqueada ou app em background interrompem o controle | Comportamento esperado e declarado para esta versão. A UI deve informar que a sessão requer primeiro plano. |
-| Encerrar processo não é permitido no iOS | Encerrar somente a sessão BLE, sem APIs privadas. |
+| Tela bloqueada ou app em background param a entrada de movimento/toque | Comportamento esperado: `CMMotionManager` e toque exigem primeiro plano. A UI não distingue isso de "sem input novo"; o pacote continua sendo enviado com o último estado conhecido. |
+| Encerrar processo não é permitido via API pública normal do iOS | `quitApp()` usa `exit(0)` deliberadamente (ver §7); aceitável só porque a distribuição é sideload, não App Store. |
 | Simulador produz falso positivo | Todo aceite BLE e IMU depende de iPhone físico e receptor Protopanda real. |
-| **Observado em hardware real:** sair do app por mais de alguns segundos faz o receptor atribuir um novo ID no retorno, e o app trava sem conseguir controlar o Proto. iOS mostra um dispositivo sem nome como "conectado" em Ajustes > Bluetooth mesmo depois do app remover os serviços GATT — indício de que a conexão de baixo nível sobrevive ao teardown foreground-only. | Mitigação parcial aplicada: `stopSession()` agora desaloca o `CBPeripheralManager` inteiro (não só os serviços) ao sair de `.active`, forçando a próxima sessão a partir de um gerenciador novo. Não há garantia de que isso derruba o enlace BLE em todos os casos — `CBPeripheralManager` não expõe uma API de desconexão forçada (ver §7). A correção completa e confiável para esse cenário é o modo `bluetooth-peripheral` em background (§13): sem ele, qualquer intervalo fora do primeiro plano deixa a conexão numa zona cinzenta que depende do timeout do firmware do receptor, fora do controle do app. |
+| **Resolvido nesta versão (era "observado em hardware real" na versão foreground-only):** sair do app por mais de alguns segundos fazia o receptor atribuir um novo ID no retorno. | `UIBackgroundModes: bluetooth-peripheral` + sessão BLE desacoplada de `scenePhase` (§7): a conexão e a subscription não são mais derrubadas ao sair de primeiro plano, então o receptor não tem motivo para expirar o slot de ID. Ainda depende de teste em hardware real para confirmar em janelas de background mais longas (minutos, não segundos) e após o sistema efetivamente encerrar o processo (caminho coberto por `willRestoreState`, mas não testado em dispositivo). |
+| Consumo de bateria do modo `bluetooth-peripheral` não medido | Mitigado parcialmente: o timer de notify (20 Hz) pausa em background (`pauseOutgoingNotifications()`); só a conexão/advertising ficam ativos. Falta medir consumo real numa sessão longa. |
+| Restauração de estado (`willRestoreState`) não testada em dispositivo | Só é exercitada se o iOS matar o processo em background — cenário difícil de forçar deliberadamente. Validar observando o app reabrir sozinho após uso prolongado em background com pressão de memória (abrir vários apps pesados). |
 
-## 13. Próxima decisão após a versão inicial
+## 13. Status do modo background
 
-Só considerar background após os testes foreground passarem no receptor. Esse trabalho forma uma segunda especificação: `bluetooth-peripheral`, state restoration, política explícita para lock screen, consumo de bateria e testes de advertising em background. Ele não entra como alteração incremental silenciosa nesta versão.
+Implementado nesta versão, a partir de um defeito reproduzível em hardware real (reatribuição de ID do receptor ao reconectar). Continua fora de escopo: manter sensores de movimento ou toque ativos com o app fora do primeiro plano — isso exigiria um mecanismo diferente (não existe no iOS um modo de background para streaming contínuo de `CMMotionManager`) e não foi pedido. Pendências antes de considerar isso "maduro": validar em dispositivo real janelas de background longas, o caminho de `willRestoreState` após o processo ser efetivamente encerrado, e o impacto de bateria de manter `bluetooth-peripheral` ligado durante uso prolongado.

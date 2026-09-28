@@ -3,7 +3,11 @@ import Foundation
 import ProtopandaControllerCore
 
 /// Top-level app state: owns the BLE and motion controllers, exposes UI-facing state, and
-/// enforces the foreground-only lifecycle described in `docs/ios-foreground-port.md` §7.
+/// coordinates the background-capable lifecycle described in `docs/ios-foreground-port.md`
+/// §7/§13: the BLE session starts once at launch and keeps running regardless of
+/// foreground/background (so the receiver-assigned controller ID stays stable across app
+/// switches); only motion sensors, touch-driven button state, and the outgoing notify timer
+/// pause with `scenePhase`, since CoreMotion and touch input both require the foreground.
 @MainActor
 final class ControllerViewModel: ObservableObject {
 
@@ -26,18 +30,22 @@ final class ControllerViewModel: ObservableObject {
         self.identity = loadedIdentity
         self.bleController = BLEPeripheralController(identity: loadedIdentity, inputState: inputState)
         self.motionController = MotionController(inputState: inputState)
-    }
-
-    /// Called when the scene becomes `.active`.
-    func handleSceneActive() {
-        motionController.start()
         bleController.startSession()
     }
 
-    /// Called when the scene leaves `.active` (`.inactive` or `.background`).
+    /// Called when the scene becomes `.active`. Only resumes motion sensing and the proactive
+    /// notify timer — the BLE session itself is already running from launch.
+    func handleSceneActive() {
+        motionController.start()
+        bleController.resumeOutgoingNotificationsIfNeeded()
+    }
+
+    /// Called when the scene leaves `.active` (`.inactive` or `.background`). Stops motion
+    /// sensing and the proactive notify timer, but deliberately leaves the BLE session,
+    /// advertising, and subscription untouched so the connection survives backgrounding.
     func handleSceneInactive() {
         motionController.stop()
-        bleController.stopSession()
+        bleController.pauseOutgoingNotifications()
     }
 
     /// Fully terminates the app process after a clean BLE/motion teardown. Regular iOS apps
@@ -45,6 +53,7 @@ final class ControllerViewModel: ObservableObject {
     /// "quit" action for this sideload-only build (see docs/ios-foreground-port.md §7).
     func quitApp() {
         handleSceneInactive()
+        bleController.stopSession()
         exit(0)
     }
 

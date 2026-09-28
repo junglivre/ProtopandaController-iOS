@@ -27,12 +27,22 @@ All notable changes to this project are documented in this file.
   publishing tagged with the short commit SHA (raw, unzipped `.ipa` asset for sideloading
   directly from an iPhone).
 
-### Fixed
+### Changed
 
-- Stale BLE connection after backgrounding: `BLEPeripheralController.stopSession()` now
-  deallocates the whole `CBPeripheralManager` (not just its GATT services) when leaving the
-  foreground. Reported symptom: leaving the app for more than a few seconds made the
-  Protopanda receiver assign a new controller ID on reconnect, with the old one stuck
-  unusable, and iOS's Bluetooth settings kept showing a nameless "connected" device.
-  Partial mitigation only — full reliability needs the `bluetooth-peripheral` background
-  mode tracked in `docs/ios-foreground-port.md` §13, which is out of scope for this version.
+- **Background BLE session** (`bluetooth-peripheral` mode): the app is no longer
+  foreground-only. `ControllerViewModel` now starts the BLE session once at launch instead
+  of on every `scenePhase` transition; only motion sensing, touch input, and the outgoing
+  notify timer pause when the app leaves `.active`. `BLEPeripheralController` opts in to
+  Core Bluetooth state preservation/restoration (`CBPeripheralManagerOptionRestoreIdentifierKey`
+  + `willRestoreState`) so a system-killed-and-relaunched process can recover its published
+  service and already-subscribed central. CI now asserts `UIBackgroundModes` contains
+  `bluetooth-peripheral` in the compiled binary.
+
+  Root cause this replaces: reported on real hardware, leaving the app for more than a few
+  seconds made the Protopanda receiver assign a new controller ID on reconnect (the old one
+  stuck unusable), with iOS's Bluetooth settings showing a nameless "connected" device even
+  after the app tore down its GATT services. An earlier mitigation (fully deallocating
+  `CBPeripheralManager` on backgrounding) did not fix it. Motion sensors and touch input
+  still require the foreground — there is no background mode for continuous
+  `CMMotionManager` streaming — so input freezes at its last known state while backgrounded,
+  but the connection and controller ID now stay stable across app switches.

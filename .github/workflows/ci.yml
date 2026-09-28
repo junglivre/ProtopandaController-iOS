@@ -70,6 +70,10 @@ jobs:
               exit 1
             fi
           done
+          if ! plutil -extract UIBackgroundModes json -o - "$PLIST" | grep -q "bluetooth-peripheral"; then
+            echo "::error::UIBackgroundModes is missing bluetooth-peripheral"
+            exit 1
+          fi
 
       - name: Verify localized resources sit at the bundle root
         working-directory: App

@@ -25,6 +25,10 @@
         <string>en</string>
         <string>pt-BR</string>
     </array>
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>bluetooth-peripheral</string>
+    </array>
     <key>LSRequiresIPhoneOS</key>
     <true/>
     <key>UILaunchScreen</key>

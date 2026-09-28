@@ -4,12 +4,23 @@ import Foundation
 import ProtopandaControllerCore
 
 /// GATT peripheral role implementation: publishes the Protopanda service/characteristics,
-/// advertises, accepts a single central, and pushes notify packets while foregrounded.
+/// advertises, accepts a single central, and pushes notify packets.
 ///
-/// Foreground-only by design (see `docs/ios-foreground-port.md` §7): the app does not declare
-/// `bluetooth-peripheral` in `UIBackgroundModes`, so this controller is started/stopped
-/// explicitly by `ControllerViewModel` on scene-phase transitions rather than relying on
-/// Core Bluetooth's background wake-up or state restoration.
+/// Backgrounded via the `bluetooth-peripheral` mode (see `docs/ios-foreground-port.md` §7/§13):
+/// the GATT session, advertising, and the central's subscription persist across foreground/
+/// background transitions — `ControllerViewModel` no longer starts/stops this controller on
+/// `scenePhase` changes, only `startSession()` once at launch and `stopSession()` on explicit
+/// quit. This is what keeps the receiver-assigned controller ID stable when the app is
+/// backgrounded briefly instead of forcing a full teardown/reconnect on every app switch.
+/// Motion sensors and touch input still require the foreground, so `pauseOutgoingNotifications()`/
+/// `resumeOutgoingNotificationsIfNeeded()` only stop/start the proactive notify timer (a battery
+/// optimization — there's no fresh input to send while backgrounded anyway); they never touch
+/// the underlying connection.
+///
+/// Opts in to Core Bluetooth state preservation and restoration via a restoration identifier,
+/// so if iOS kills the process while backgrounded (memory pressure) and later relaunches it to
+/// service a Bluetooth event, `peripheralManager(_:willRestoreState:)` recovers the previously
+/// published service/characteristic and any already-subscribed central.
 ///
 /// Runs entirely on the main actor. Core Bluetooth requires every peripheral-manager method
 /// call to happen on the same queue the manager was created with; passing `queue: nil` means
@@ -41,6 +52,8 @@ final class BLEPeripheralController: NSObject, ObservableObject {
         case systemError(String)
     }
 
+    private static let restorationIdentifier = "gay.protopanda.controller.peripheral"
+
     @Published private(set) var status: Status = .idle
 
     private var peripheralManager: CBPeripheralManager?
@@ -52,6 +65,10 @@ final class BLEPeripheralController: NSObject, ObservableObject {
     private var isServicePublished = false
     private var isSessionActive = false
 
+    /// Whether the proactive notify timer is allowed to run. Set to `false` while backgrounded
+    /// to save battery/radio use; the connection and subscription stay untouched either way.
+    private var shouldSendNotifications = true
+
     private var notifyTimer: DispatchSourceTimer?
     private var hasPendingNotify = false
 
@@ -61,28 +78,25 @@ final class BLEPeripheralController: NSObject, ObservableObject {
         super.init()
     }
 
-    /// Starts (or resumes) the peripheral session. Safe to call repeatedly.
+    /// Starts the peripheral session. Safe to call repeatedly. Intended to be called once at
+    /// launch and left running for the app's lifetime (see the type-level doc comment).
     func startSession() {
         guard !isSessionActive else { return }
         isSessionActive = true
         if peripheralManager == nil {
-            peripheralManager = CBPeripheralManager(delegate: self, queue: nil)
+            peripheralManager = CBPeripheralManager(
+                delegate: self,
+                queue: nil,
+                options: [CBPeripheralManagerOptionRestoreIdentifierKey: Self.restorationIdentifier]
+            )
         } else if peripheralManager?.state == .poweredOn {
             publishServiceIfNeeded()
         }
     }
 
-    /// Stops advertising, tears down the GATT database, and clears session state. Called
-    /// whenever the scene leaves `.active`, or when the user stops the controller.
-    ///
-    /// Fully deallocates `peripheralManager` (not just its services) so the next
-    /// `startSession()` starts from a brand-new manager instance. Simply clearing services
-    /// while keeping the same manager alive can leave a lingering low-level connection to the
-    /// central that neither side actively tears down — observed on real hardware as a
-    /// nameless "connected" device lingering in iOS's Bluetooth settings, and as the receiver
-    /// assigning a new controller ID on reconnect because it still considers the old one
-    /// occupied. Releasing the manager is the strongest teardown available without the
-    /// `bluetooth-peripheral` background mode (see spec §13).
+    /// Fully stops advertising, tears down the GATT database, and deallocates the peripheral
+    /// manager. Only called on explicit user-initiated quit now that the session persists
+    /// across backgrounding — this is the real, deliberate end of the BLE session.
     func stopSession() {
         isSessionActive = false
         teardownGATT()
@@ -92,6 +106,21 @@ final class BLEPeripheralController: NSObject, ObservableObject {
         } else {
             status = .idle
         }
+    }
+
+    /// Stops the proactive notify timer without touching the session, GATT database, or
+    /// subscription. Call when the scene leaves `.active`.
+    func pauseOutgoingNotifications() {
+        shouldSendNotifications = false
+        stopNotifyTimer()
+    }
+
+    /// Resumes the proactive notify timer if a central is already subscribed and has a valid
+    /// controller ID. Call when the scene becomes `.active`.
+    func resumeOutgoingNotificationsIfNeeded() {
+        shouldSendNotifications = true
+        guard isSessionActive, subscribedCentral != nil, inputState.controllerID != -1 else { return }
+        startNotifyTimer()
     }
 
     /// Applies a new identity: tears down the current GATT database and republishes under the
@@ -163,7 +192,7 @@ final class BLEPeripheralController: NSObject, ObservableObject {
     }
 
     private func startNotifyTimer() {
-        guard notifyTimer == nil else { return }
+        guard shouldSendNotifications, notifyTimer == nil else { return }
         let timer = DispatchSource.makeTimerSource(queue: .main)
         timer.schedule(deadline: .now(), repeating: .milliseconds(50))
         timer.setEventHandler { [weak self] in
@@ -224,6 +253,28 @@ extension BLEPeripheralController: CBPeripheralManagerDelegate {
         status = .bluetoothUnavailable(reason)
     }
 
+    /// Recovers state after iOS kills the app process while backgrounded and relaunches it to
+    /// service a Bluetooth event. Only the service/characteristic references and the already-
+    /// subscribed central (read back from the characteristic's own `subscribedCentrals`) need
+    /// restoring; `identity`, `inputState`, and the rest of this controller's own properties
+    /// are reconstructed normally by `ControllerViewModel.init()` on the fresh launch.
+    func peripheralManager(_ peripheral: CBPeripheralManager, willRestoreState dict: [String: Any]) {
+        guard let services = dict[CBPeripheralManagerRestoredStateServicesKey] as? [CBMutableService] else { return }
+        for service in services where service.uuid == CBUUID(nsuuid: identity.serviceUUID) {
+            isServicePublished = true
+            for characteristic in service.characteristics ?? [] {
+                guard let mutableCharacteristic = characteristic as? CBMutableCharacteristic,
+                      mutableCharacteristic.uuid == CBUUID(nsuuid: identity.notifyUUID) else { continue }
+                notifyCharacteristic = mutableCharacteristic
+                if let central = mutableCharacteristic.subscribedCentrals?.first {
+                    subscribedCentral = central
+                    if shouldSendNotifications { startNotifyTimer() }
+                }
+            }
+        }
+        recomputeStatus()
+    }
+
     func peripheralManager(_ peripheral: CBPeripheralManager, didAdd service: CBService, error: Error?) {
         guard error == nil else {
             status = .advertisingFailed(.serviceRegistrationFailed)
@@ -251,7 +302,7 @@ extension BLEPeripheralController: CBPeripheralManagerDelegate {
         guard subscribedCentral == nil || subscribedCentral == central else { return }
         subscribedCentral = central
         peripheral.stopAdvertising()
-        startNotifyTimer()
+        if shouldSendNotifications { startNotifyTimer() }
         recomputeStatus()
     }
 
