@@ -16,8 +16,7 @@ targets:
     sources:
       - path: Sources
       - path: Assets.xcassets
-      - path: Resources/en.lproj
-      - path: Resources/pt-BR.lproj
+      - path: Resources
     settings:
       base:
         PRODUCT_NAME: ProtopandaController
