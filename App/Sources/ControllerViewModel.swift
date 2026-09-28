@@ -34,11 +34,18 @@ final class ControllerViewModel: ObservableObject {
         bleController.startSession()
     }
 
-    /// Called when the scene leaves `.active` (`.inactive` or `.background`), or when the user
-    /// taps "Encerrar controlador".
+    /// Called when the scene leaves `.active` (`.inactive` or `.background`).
     func handleSceneInactive() {
         motionController.stop()
         bleController.stopSession()
+    }
+
+    /// Fully terminates the app process after a clean BLE/motion teardown. Regular iOS apps
+    /// have no public API to ask the system to close them; this is a deliberate, user-requested
+    /// "quit" action for this sideload-only build (see docs/ios-foreground-port.md §7).
+    func quitApp() {
+        handleSceneInactive()
+        exit(0)
     }
 
     /// Updates the set of currently pressed D-pad/face buttons from the touch layer.

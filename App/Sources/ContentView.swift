@@ -1,4 +1,5 @@
 import SwiftUI
+import Foundation
 import ProtopandaControllerCore
 
 struct ContentView: View {
@@ -7,6 +8,7 @@ struct ContentView: View {
     @ObservedObject var motionController: MotionController
 
     @State private var showSettings = false
+    @State private var showQuitConfirmation = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -42,6 +44,14 @@ struct ContentView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView(viewModel: viewModel)
         }
+        .alert("action.quit_app_title", isPresented: $showQuitConfirmation) {
+            Button("action.cancel", role: .cancel) {}
+            Button("action.quit", role: .destructive) {
+                viewModel.quitApp()
+            }
+        } message: {
+            Text("action.quit_app_message")
+        }
     }
 
     private var statusBar: some View {
@@ -49,7 +59,7 @@ struct ContentView: View {
             Circle()
                 .fill(statusColor)
                 .frame(width: 12, height: 12)
-            Text(statusText)
+            statusText
                 .font(.subheadline)
                 .foregroundStyle(.white)
                 .lineLimit(1)
@@ -60,9 +70,9 @@ struct ContentView: View {
                 Image(systemName: "gearshape")
             }
             Button(role: .destructive) {
-                viewModel.handleSceneInactive()
+                showQuitConfirmation = true
             } label: {
-                Image(systemName: "stop.circle")
+                Image(systemName: "power")
             }
         }
         .padding(.horizontal, 16)
@@ -83,20 +93,32 @@ struct ContentView: View {
         }
     }
 
-    private var statusText: String {
+    private var statusText: Text {
         switch bleController.status {
-        case .bluetoothUnavailable(let message):
-            return message
+        case .bluetoothUnavailable(let reason):
+            switch reason {
+            case .poweredOff:
+                return Text("status.bluetooth_off")
+            case .unauthorized:
+                return Text("status.bluetooth_unauthorized")
+            case .unsupported:
+                return Text("status.bluetooth_unsupported")
+            }
         case .idle:
-            return "Aguardando conexão…"
+            return Text("status.idle")
         case .advertising:
-            return "Anunciando…"
+            return Text("status.advertising")
         case .connectedAwaitingID:
-            return "Conectado · aguardando ID…"
+            return Text("status.connected_awaiting_id")
         case .connected(let id):
-            return "Conectado · ID \(id)"
+            return Text(String(format: NSLocalizedString("status.connected_id", comment: ""), id))
         case .advertisingFailed(let reason):
-            return "Falha ao anunciar: \(reason)"
+            switch reason {
+            case .serviceRegistrationFailed:
+                return Text("status.service_registration_failed")
+            case .systemError(let message):
+                return Text(String(format: NSLocalizedString("status.advertising_failed", comment: ""), message))
+            }
         }
     }
 
@@ -115,7 +137,7 @@ struct ContentView: View {
                 motionController.displayGyro.z
             ))
             if !motionController.isAccelerometerAvailable || !motionController.isGyroscopeAvailable {
-                Text("Sensores indisponíveis neste iPhone")
+                Text("imu.sensors_unavailable")
                     .foregroundStyle(.orange)
             }
         }

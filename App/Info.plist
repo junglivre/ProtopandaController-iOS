@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleDevelopmentRegion</key>
-    <string>pt-BR</string>
+    <string>en</string>
     <key>CFBundleDisplayName</key>
     <string>Protopanda Controller</string>
     <key>CFBundleExecutable</key>
@@ -20,6 +20,11 @@
     <string>$(MARKETING_VERSION)</string>
     <key>CFBundleVersion</key>
     <string>$(CURRENT_PROJECT_VERSION)</string>
+    <key>CFBundleLocalizations</key>
+    <array>
+        <string>en</string>
+        <string>pt-BR</string>
+    </array>
     <key>LSRequiresIPhoneOS</key>
     <true/>
     <key>UILaunchScreen</key>
@@ -34,8 +39,8 @@
         <string>UIInterfaceOrientationPortrait</string>
     </array>
     <key>NSBluetoothAlwaysUsageDescription</key>
-    <string>O Protopanda Controller usa Bluetooth para se conectar diretamente ao receptor Protopanda, sem servidores intermediários.</string>
+    <string>Protopanda Controller uses Bluetooth to connect directly to the Protopanda receiver, with no intermediary servers.</string>
     <key>NSMotionUsageDescription</key>
-    <string>O Protopanda Controller usa o acelerômetro e o giroscópio do iPhone para os controles de movimento do Protopanda.</string>
+    <string>Protopanda Controller uses the iPhone's accelerometer and gyroscope for Protopanda's motion controls.</string>
 </dict>
 </plist>

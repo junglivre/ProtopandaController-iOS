@@ -18,12 +18,27 @@ import ProtopandaControllerCore
 final class BLEPeripheralController: NSObject, ObservableObject {
 
     enum Status: Equatable {
-        case bluetoothUnavailable(String)
+        case bluetoothUnavailable(BluetoothUnavailableReason)
         case idle
         case advertising
         case connectedAwaitingID
         case connected(id: Int32)
-        case advertisingFailed(String)
+        case advertisingFailed(AdvertisingFailureReason)
+    }
+
+    /// Why Bluetooth isn't usable right now. The view layer maps these to localized text;
+    /// this type intentionally carries no language-specific strings.
+    enum BluetoothUnavailableReason: Equatable {
+        case poweredOff
+        case unauthorized
+        case unsupported
+    }
+
+    /// Why advertising/service-publishing failed. `.systemError` wraps
+    /// `error.localizedDescription`, which iOS already localizes for the device's language.
+    enum AdvertisingFailureReason: Equatable {
+        case serviceRegistrationFailed
+        case systemError(String)
     }
 
     @Published private(set) var status: Status = .idle
@@ -182,11 +197,11 @@ extension BLEPeripheralController: CBPeripheralManagerDelegate {
                 status = .idle
             }
         case .poweredOff:
-            handleBluetoothUnavailable("Bluetooth está desligado")
+            handleBluetoothUnavailable(.poweredOff)
         case .unauthorized:
-            handleBluetoothUnavailable("Permissão de Bluetooth negada")
+            handleBluetoothUnavailable(.unauthorized)
         case .unsupported:
-            handleBluetoothUnavailable("Este iPhone não suporta periférico BLE")
+            handleBluetoothUnavailable(.unsupported)
         case .resetting, .unknown:
             break
         @unknown default:
@@ -194,14 +209,14 @@ extension BLEPeripheralController: CBPeripheralManagerDelegate {
         }
     }
 
-    private func handleBluetoothUnavailable(_ message: String) {
+    private func handleBluetoothUnavailable(_ reason: BluetoothUnavailableReason) {
         teardownGATT()
-        status = .bluetoothUnavailable(message)
+        status = .bluetoothUnavailable(reason)
     }
 
     func peripheralManager(_ peripheral: CBPeripheralManager, didAdd service: CBService, error: Error?) {
         guard error == nil else {
-            status = .advertisingFailed("Falha ao publicar serviço GATT")
+            status = .advertisingFailed(.serviceRegistrationFailed)
             return
         }
         isServicePublished = true
@@ -211,7 +226,7 @@ extension BLEPeripheralController: CBPeripheralManagerDelegate {
 
     func peripheralManagerDidStartAdvertising(_ peripheral: CBPeripheralManager, error: Error?) {
         if let error {
-            status = .advertisingFailed(error.localizedDescription)
+            status = .advertisingFailed(.systemError(error.localizedDescription))
         } else {
             recomputeStatus()
         }

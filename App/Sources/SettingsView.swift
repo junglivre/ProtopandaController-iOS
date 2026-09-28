@@ -1,4 +1,5 @@
 import SwiftUI
+import Foundation
 import ProtopandaControllerCore
 
 struct SettingsView: View {
@@ -13,10 +14,10 @@ struct SettingsView: View {
     var body: some View {
         NavigationView {
             Form {
-                Section("Identidade BLE") {
-                    uuidField("Serviço", text: $serviceText)
-                    uuidField("Leitura/escrita", text: $readWriteText)
-                    uuidField("Notificação", text: $notifyText)
+                Section("settings.section_identity") {
+                    uuidField("settings.field_service", text: $serviceText)
+                    uuidField("settings.field_read_write", text: $readWriteText)
+                    uuidField("settings.field_notify", text: $notifyText)
                     if let errorMessage {
                         Text(errorMessage)
                             .foregroundStyle(.red)
@@ -25,25 +26,25 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    Button("Salvar") { save() }
-                    Button("Restaurar padrões") { populate(with: .default) }
+                    Button("settings.save") { save() }
+                    Button("settings.restore_defaults") { populate(with: .default) }
                 }
 
-                Section("Sobre") {
-                    Text("Versão \(Bundle.main.appVersion)")
-                    Link("Repositório no GitHub", destination: URL(string: "https://github.com/junglivre/ProtopandaController-iOS")!)
+                Section("settings.section_about") {
+                    Text(String(format: NSLocalizedString("settings.version", comment: ""), Bundle.main.appVersion))
+                    Link("settings.repository_link", destination: URL(string: "https://github.com/junglivre/ProtopandaController-iOS")!)
                 }
 
-                Section("Créditos") {
-                    Link("GooDDu — primeira versão do app Android", destination: URL(string: "https://github.com/GooDDu")!)
-                    Link("mockthebear — criador do Protopanda", destination: URL(string: "https://github.com/mockthebear")!)
-                    Link("junglivre — porte iOS e app Android", destination: URL(string: "https://github.com/junglivre")!)
+                Section("settings.section_credits") {
+                    Link("settings.credit_goodu", destination: URL(string: "https://github.com/GooDDu")!)
+                    Link("settings.credit_mockthebear", destination: URL(string: "https://github.com/mockthebear")!)
+                    Link("settings.credit_junglivre", destination: URL(string: "https://github.com/junglivre")!)
                 }
             }
-            .navigationTitle("Configurações")
+            .navigationTitle("settings.title")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Fechar") { dismiss() }
+                    Button("settings.close") { dismiss() }
                 }
             }
             .onAppear { populate(with: viewModel.identity) }
@@ -52,7 +53,7 @@ struct SettingsView: View {
 
     /// Manual label-above-field row, since `LabeledContent` requires iOS 16+ and this app
     /// targets iOS 15.
-    private func uuidField(_ label: String, text: Binding<String>) -> some View {
+    private func uuidField(_ label: LocalizedStringKey, text: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label)
                 .font(.caption)
@@ -86,13 +87,13 @@ struct SettingsView: View {
     private func message(for error: ControllerViewModel.IdentityValidationError) -> String {
         switch error {
         case .invalidServiceUUID:
-            return "UUID de serviço inválido."
+            return NSLocalizedString("settings.error_invalid_service_uuid", comment: "")
         case .invalidReadWriteUUID:
-            return "UUID de leitura/escrita inválido."
+            return NSLocalizedString("settings.error_invalid_read_write_uuid", comment: "")
         case .invalidNotifyUUID:
-            return "UUID de notificação inválido."
+            return NSLocalizedString("settings.error_invalid_notify_uuid", comment: "")
         case .duplicateUUIDs:
-            return "Os três UUIDs precisam ser diferentes."
+            return NSLocalizedString("settings.error_duplicate_uuids", comment: "")
         }
     }
 }

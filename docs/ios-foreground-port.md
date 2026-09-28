@@ -46,6 +46,8 @@ Com o app aberto, o receptor encontra o iPhone pelo UUID de serviço, conecta, e
 - Tela de configurações para os três UUIDs, restauração dos padrões e links de créditos/repositório.
 - Persistência local dos UUIDs.
 - Operação somente no primeiro plano.
+- Localização em inglês e português (pt-BR), seguindo o idioma do sistema, sem seletor manual no app.
+- Botão de fechar mata o processo (`exit(0)`) após confirmação, em vez de só parar a sessão BLE (ver §7).
 - Política de privacidade específica para iOS antes da distribuição.
 
 ### Fora de escopo
@@ -153,12 +155,12 @@ right=0, down=1, left=2, up=3, ok=4, back=5, l1=6, r1=7
 ### Tela principal
 
 - Orientação retrato.
-- Barra superior: indicador de estado, botão de configurações e botão para encerrar a sessão do controlador.
+- Barra superior: indicador de estado, botão de configurações e botão para encerrar o app.
 - Exibir versão e leituras IMU.
 - D-pad e botões com áreas de toque dimensionadas para uso com vários dedos.
 - Estados: `Bluetooth indisponível`, `Anunciando`, `Conectado — aguardando ID`, `Conectado — ID N`, `Erro de BLE` e `Sensores indisponíveis`.
 
-O iOS não permite que o app encerre seu próprio processo. O botão equivalente a `Exit` deve se chamar **Encerrar controlador**: parar advertising, remover os serviços publicados, zerar estado da sessão e voltar a um estado ocioso. Ele não chama APIs privadas nem tenta fechar o app.
+**Decisão revisada (pedido explícito do usuário, 2026-09-28):** o botão de fechar não é mais um "parar sessão BLE". Ele mostra uma confirmação e, ao aceitar, chama `ControllerViewModel.quitApp()`, que encerra a sessão BLE/sensores e então executa `exit(0)`, matando o processo de verdade. Isso reverte a orientação original desta seção ("o app não tenta fechar-se"): `exit(0)` é uma API pública, não privada, mas a Apple recomenda não usá-la em apps de App Store — aceitável aqui porque a distribuição é só sideload (SideStore/iLoader), sem submissão à App Store nesta fase.
 
 ### Configurações
 

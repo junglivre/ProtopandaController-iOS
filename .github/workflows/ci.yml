@@ -86,3 +86,37 @@ jobs:
           name: ProtopandaController-unsigned-ipa
           path: App/ProtopandaController-unsigned.ipa
           if-no-files-found: error
+
+  publish-release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs: ios-build
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download IPA artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ProtopandaController-unsigned-ipa
+          path: dist
+
+      - name: Publish release tagged with the short commit SHA
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          TAG="$(git rev-parse --short HEAD)"
+          IPA="dist/ProtopandaController-unsigned.ipa"
+          # Idempotent: reruns for the same commit update the existing release's asset
+          # instead of failing on a duplicate tag.
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$IPA" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" "$IPA" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$TAG" \
+              --notes "Unsigned IPA built from commit $TAG. Download and sideload directly with SideStore, AltStore, or iLoader — no code signing required ahead of time."
+          fi
