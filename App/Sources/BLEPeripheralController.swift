@@ -74,9 +74,19 @@ final class BLEPeripheralController: NSObject, ObservableObject {
 
     /// Stops advertising, tears down the GATT database, and clears session state. Called
     /// whenever the scene leaves `.active`, or when the user stops the controller.
+    ///
+    /// Fully deallocates `peripheralManager` (not just its services) so the next
+    /// `startSession()` starts from a brand-new manager instance. Simply clearing services
+    /// while keeping the same manager alive can leave a lingering low-level connection to the
+    /// central that neither side actively tears down — observed on real hardware as a
+    /// nameless "connected" device lingering in iOS's Bluetooth settings, and as the receiver
+    /// assigning a new controller ID on reconnect because it still considers the old one
+    /// occupied. Releasing the manager is the strongest teardown available without the
+    /// `bluetooth-peripheral` background mode (see spec §13).
     func stopSession() {
         isSessionActive = false
         teardownGATT()
+        peripheralManager = nil
         if case .bluetoothUnavailable = status {
             // Keep the "unavailable" banner visible instead of overwriting it with idle.
         } else {

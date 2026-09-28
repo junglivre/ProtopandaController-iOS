@@ -26,3 +26,13 @@ All notable changes to this project are documented in this file.
 - Localization (English/Portuguese), a real "quit app" action, and GitHub Release
   publishing tagged with the short commit SHA (raw, unzipped `.ipa` asset for sideloading
   directly from an iPhone).
+
+### Fixed
+
+- Stale BLE connection after backgrounding: `BLEPeripheralController.stopSession()` now
+  deallocates the whole `CBPeripheralManager` (not just its GATT services) when leaving the
+  foreground. Reported symptom: leaving the app for more than a few seconds made the
+  Protopanda receiver assign a new controller ID on reconnect, with the old one stuck
+  unusable, and iOS's Bluetooth settings kept showing a nameless "connected" device.
+  Partial mitigation only — full reliability needs the `bluetooth-peripheral` background
+  mode tracked in `docs/ios-foreground-port.md` §13, which is out of scope for this version.

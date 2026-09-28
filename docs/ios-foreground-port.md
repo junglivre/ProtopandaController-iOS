@@ -347,6 +347,7 @@ TestFlight e App Store continuam possíveis sem Mac próprio, mas exigem uma con
 | Tela bloqueada ou app em background interrompem o controle | Comportamento esperado e declarado para esta versão. A UI deve informar que a sessão requer primeiro plano. |
 | Encerrar processo não é permitido no iOS | Encerrar somente a sessão BLE, sem APIs privadas. |
 | Simulador produz falso positivo | Todo aceite BLE e IMU depende de iPhone físico e receptor Protopanda real. |
+| **Observado em hardware real:** sair do app por mais de alguns segundos faz o receptor atribuir um novo ID no retorno, e o app trava sem conseguir controlar o Proto. iOS mostra um dispositivo sem nome como "conectado" em Ajustes > Bluetooth mesmo depois do app remover os serviços GATT — indício de que a conexão de baixo nível sobrevive ao teardown foreground-only. | Mitigação parcial aplicada: `stopSession()` agora desaloca o `CBPeripheralManager` inteiro (não só os serviços) ao sair de `.active`, forçando a próxima sessão a partir de um gerenciador novo. Não há garantia de que isso derruba o enlace BLE em todos os casos — `CBPeripheralManager` não expõe uma API de desconexão forçada (ver §7). A correção completa e confiável para esse cenário é o modo `bluetooth-peripheral` em background (§13): sem ele, qualquer intervalo fora do primeiro plano deixa a conexão numa zona cinzenta que depende do timeout do firmware do receptor, fora do controle do app. |
 
 ## 13. Próxima decisão após a versão inicial
 
