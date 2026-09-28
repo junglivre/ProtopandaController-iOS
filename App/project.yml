@@ -15,7 +15,6 @@ targets:
     deploymentTarget: "15.0"
     sources:
       - path: Sources
-    resources:
       - path: Assets.xcassets
       - path: Resources/en.lproj
       - path: Resources/pt-BR.lproj
