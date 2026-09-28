@@ -17,8 +17,6 @@ targets:
       - path: Sources
     resources:
       - path: Assets.xcassets
-    info:
-      path: Info.plist
     settings:
       base:
         PRODUCT_NAME: ProtopandaController

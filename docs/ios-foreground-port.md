@@ -223,6 +223,15 @@ Regras de fronteira:
 > compilador cai em modo Swift 6, tornando erro o que seria apenas aviso de concorrência para
 > essa conformação de delegate. (2) `LabeledContent` só existe a partir do iOS 16; com
 > deployment target 15, usar um layout manual (rótulo + campo) nas telas de configuração.
+> (3) **Causa raiz de um crash reproduzido em iPhone real (iOS 18, sideload via iLoader):**
+> o bloco `info: { path: Info.plist }` do XcodeGen não referencia um arquivo existente — ele
+> **gera e sobrescreve** o Info.plist a cada `xcodegen generate`, descartando o arquivo real do
+> repositório e produzindo um plist mínimo sem `NSBluetoothAlwaysUsageDescription`. O
+> `CBPeripheralManager` aborta o processo quando essa chave falta (diferente do CoreLocation, que
+> apenas nega a permissão), o que casa exatamente com o sintoma relatado: a tela abre, o D-pad
+> aparece, e o app cai assim que `scenePhase` vira `.active` e `startSession()` cria o
+> `CBPeripheralManager`. Correção: remover o bloco `info:` do alvo e apontar `INFOPLIST_FILE`
+> direto para o arquivo em `settings.base`, com `GENERATE_INFOPLIST_FILE: NO`.
 
 
 ## 9. Requisitos de plataforma, privacidade e distribuição
