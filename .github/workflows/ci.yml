@@ -71,6 +71,23 @@ jobs:
             fi
           done
 
+      - name: Verify localized resources sit at the bundle root
+        working-directory: App
+        run: |
+          set -eu
+          APP="build/Build/Products/Release-iphoneos/ProtopandaController.app"
+          echo "--- Top-level bundle contents ---"
+          ls -la "$APP"
+          for LOCALE in en pt-BR; do
+            STRINGS="$APP/$LOCALE.lproj/Localizable.strings"
+            if [ ! -f "$STRINGS" ]; then
+              echo "::error::Missing $STRINGS — localization resources are not at the bundle root"
+              exit 1
+            fi
+            echo "--- $LOCALE.lproj/Localizable.strings (sample) ---"
+            plutil -p "$STRINGS" | head -5
+          done
+
       - name: Package IPA
         working-directory: App
         run: |
