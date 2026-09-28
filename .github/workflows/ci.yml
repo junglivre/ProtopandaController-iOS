@@ -57,6 +57,20 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY=""
 
+      - name: Verify compiled Info.plist keys
+        working-directory: App
+        run: |
+          set -eu
+          PLIST="build/Build/Products/Release-iphoneos/ProtopandaController.app/Info.plist"
+          echo "--- Compiled Info.plist ---"
+          plutil -p "$PLIST"
+          for KEY in NSBluetoothAlwaysUsageDescription NSMotionUsageDescription CFBundleIdentifier; do
+            if ! plutil -extract "$KEY" raw "$PLIST" >/dev/null 2>&1; then
+              echo "::error::Missing required Info.plist key: $KEY"
+              exit 1
+            fi
+          done
+
       - name: Package IPA
         working-directory: App
         run: |
