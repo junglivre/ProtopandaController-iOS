@@ -1,0 +1,32 @@
+name: ProtopandaController
+options:
+  deploymentTarget:
+    iOS: "15.0"
+configs:
+  Debug: debug
+  Release: release
+packages:
+  ProtopandaControllerCore:
+    path: ../ProtopandaControllerCore
+targets:
+  ProtopandaController:
+    type: application
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: Sources
+    resources:
+      - path: Assets.xcassets
+    info:
+      path: Info.plist
+    settings:
+      base:
+        PRODUCT_NAME: ProtopandaController
+        PRODUCT_BUNDLE_IDENTIFIER: gay.protopanda.controller
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        ENABLE_PREVIEWS: YES
+    dependencies:
+      - package: ProtopandaControllerCore

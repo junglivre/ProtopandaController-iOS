@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  core-tests:
+    name: Core package tests (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "5.10"
+      - name: swift test
+        working-directory: ProtopandaControllerCore
+        run: swift test
+
+  ios-build:
+    name: Build unsigned IPA (macOS)
+    runs-on: macos-latest
+    needs: core-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: App
+        run: xcodegen generate
+
+      - name: Resolve Swift package dependencies
+        working-directory: App
+        run: >
+          xcodebuild -resolvePackageDependencies
+          -project ProtopandaController.xcodeproj
+          -scheme ProtopandaController
+
+      - name: Build unsigned app for iOS devices
+        working-directory: App
+        run: |
+          xcodebuild build \
+            -project ProtopandaController.xcodeproj \
+            -scheme ProtopandaController \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Package IPA
+        working-directory: App
+        run: |
+          set -eu
+          APP_PATH="build/Build/Products/Release-iphoneos/ProtopandaController.app"
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
+          zip -r ProtopandaController-unsigned.ipa Payload
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ProtopandaController-unsigned-ipa
+          path: App/ProtopandaController-unsigned.ipa
+          if-no-files-found: error
