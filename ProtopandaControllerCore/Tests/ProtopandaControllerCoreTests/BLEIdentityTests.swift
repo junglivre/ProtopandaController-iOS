@@ -24,7 +24,7 @@ final class BLEIdentityTests: XCTestCase {
         let timeZone = TimeZone(secondsFromGMT: -3 * 60 * 60)!
         let now = Date(timeIntervalSince1970: 1_760_000_000)
 
-        XCTAssertEqual(Array(BLEIdentity.clockPayload(now: now, timeZone: timeZone)), [0x00, 0xE9, 0xE7, 0x68, 0x4C, 0xFF])
+        XCTAssertEqual(Array(BLEIdentity.clockPayload(now: now, timeZone: timeZone)), [0x00, 0x78, 0xE7, 0x68, 0x4C, 0xFF])
     }
 
     func testParsingRejectsInvalidOrEmptyText() {
