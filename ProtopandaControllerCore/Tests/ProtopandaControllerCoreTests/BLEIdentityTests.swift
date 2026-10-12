@@ -7,6 +7,7 @@ final class BLEIdentityTests: XCTestCase {
         XCTAssertEqual(BLEIdentity.default.serviceUUID.uuidString, "D4D31337-C4C1-C2C3-B4B3-B2B1A4A3A2A1")
         XCTAssertEqual(BLEIdentity.default.readWriteUUID.uuidString, "D4D3FAFB-C4C1-C2C3-B4B3-B2B1A4A3A2A1")
         XCTAssertEqual(BLEIdentity.default.notifyUUID.uuidString, "D4D3AFAF-C4C1-C2C3-B4B3-B2B1A4A3A2A1")
+        XCTAssertEqual(BLEIdentity.clockUUID.uuidString, "D4D3C10C-C4C1-C2C3-B4B3-B2B1A4A3A2A1")
     }
 
     func testDefaultIdentityHasDistinctUUIDs() {
@@ -17,6 +18,13 @@ final class BLEIdentityTests: XCTestCase {
         let shared = UUID()
         let identity = BLEIdentity(serviceUUID: shared, readWriteUUID: shared, notifyUUID: UUID())
         XCTAssertFalse(identity.hasDistinctUUIDs)
+    }
+
+    func testClockPayloadUsesLittleEndianEpochAndOffset() {
+        let timeZone = TimeZone(secondsFromGMT: -3 * 60 * 60)!
+        let now = Date(timeIntervalSince1970: 1_760_000_000)
+
+        XCTAssertEqual(Array(BLEIdentity.clockPayload(now: now, timeZone: timeZone)), [0x00, 0xE9, 0xE7, 0x68, 0x4C, 0xFF])
     }
 
     func testParsingRejectsInvalidOrEmptyText() {

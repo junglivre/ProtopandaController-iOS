@@ -84,6 +84,7 @@ Com o app aberto, o receptor encontra o iPhone pelo UUID de serviço, conecta, e
 | Serviço primário | `d4d31337-c4c1-c2c3-b4b3-b2b1a4a3a2a1` |
 | Característica read/write | `d4d3fafb-c4c1-c2c3-b4b3-b2b1a4a3a2a1` |
 | Característica read/notify | `d4d3afaf-c4c1-c2c3-b4b3-b2b1a4a3a2a1` |
+| Característica de relógio (leitura opcional) | `d4d3c10c-c4c1-c2c3-b4b3-b2b1a4a3a2a1` |
 | CCCD | `00002902-0000-1000-8000-00805f9b34fb` |
 
 O app anuncia apenas o UUID de serviço. Não inclui nome local do dispositivo no advertising.
@@ -94,6 +95,7 @@ O app anuncia apenas o UUID de serviço. Não inclui nome local do dispositivo n
 | --- | --- | --- |
 | read/write | `.read`, `.write` | O central escreve 4 bytes little-endian com o ID. Uma leitura devolve o mesmo `Int32` little-endian. |
 | notify | `.read`, `.notify` | Uma leitura devolve o pacote atual. Após subscription no CCCD, o app tenta enviar o pacote periodicamente. |
+| relógio | `.read` | Uma leitura devolve o epoch Unix atual (4 bytes) e o offset UTC local em minutos (2 bytes), em little-endian. |
 
 O app aceita somente um central. Quando um central conecta, ele para o advertising. Ao desconectar, ele limpa subscription e ID e reinicia o advertising enquanto continuar em primeiro plano.
 
