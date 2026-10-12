@@ -178,8 +178,15 @@ final class BLEPeripheralController: NSObject, ObservableObject {
         )
         notifyCharacteristic = notifyChar
 
+        let clockChar = CBMutableCharacteristic(
+            type: CBUUID(nsuuid: BLEIdentity.clockUUID),
+            properties: [.read],
+            value: nil,
+            permissions: [.readable]
+        )
+
         let service = CBMutableService(type: CBUUID(nsuuid: identity.serviceUUID), primary: true)
-        service.characteristics = [readWriteChar, notifyChar]
+        service.characteristics = [readWriteChar, notifyChar, clockChar]
         peripheralManager.add(service)
     }
 
@@ -326,6 +333,9 @@ extension BLEPeripheralController: CBPeripheralManagerDelegate {
             peripheral.respond(to: request, withResult: .success)
         case CBUUID(nsuuid: identity.notifyUUID):
             request.value = PacketEncoder.encode(inputState.currentSnapshot())
+            peripheral.respond(to: request, withResult: .success)
+        case CBUUID(nsuuid: BLEIdentity.clockUUID):
+            request.value = BLEIdentity.clockPayload()
             peripheral.respond(to: request, withResult: .success)
         default:
             peripheral.respond(to: request, withResult: .attributeNotFound)

@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.0.0] - 2026-10-12
+
+### Added
+
+- Optional read-only BLE GATT clock characteristic for Proto. It provides
+  the current Unix epoch seconds and the local UTC offset when the receiver
+  reads it.
+
 ## [0.1.0] - 2026-09-28
 
 ### Added
