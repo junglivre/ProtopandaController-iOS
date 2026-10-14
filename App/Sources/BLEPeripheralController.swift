@@ -55,6 +55,10 @@ final class BLEPeripheralController: NSObject, ObservableObject {
     private static let restorationIdentifier = "gay.protopanda.controller.peripheral"
 
     @Published private(set) var status: Status = .idle
+    /// Set only after iOS has had a chance to present its native "Bluetooth is off" alert.
+    /// The app has no API to observe that alert's Cancel action directly, so this drives the
+    /// mandatory in-app quit confirmation if Bluetooth remains off afterwards.
+    @Published private(set) var requiresBluetoothPowerOnOrQuit = false
 
     private var peripheralManager: CBPeripheralManager?
     private var identity: BLEIdentity
@@ -87,7 +91,10 @@ final class BLEPeripheralController: NSObject, ObservableObject {
             peripheralManager = CBPeripheralManager(
                 delegate: self,
                 queue: nil,
-                options: [CBPeripheralManagerOptionRestoreIdentifierKey: Self.restorationIdentifier]
+                options: [
+                    CBPeripheralManagerOptionRestoreIdentifierKey: Self.restorationIdentifier,
+                    CBPeripheralManagerOptionShowPowerAlertKey: true,
+                ]
             )
         } else if peripheralManager?.state == .poweredOn {
             publishServiceIfNeeded()
@@ -99,6 +106,7 @@ final class BLEPeripheralController: NSObject, ObservableObject {
     /// across backgrounding — this is the real, deliberate end of the BLE session.
     func stopSession() {
         isSessionActive = false
+        requiresBluetoothPowerOnOrQuit = false
         teardownGATT()
         peripheralManager = nil
         if case .bluetoothUnavailable = status {
@@ -231,6 +239,7 @@ extension BLEPeripheralController: CBPeripheralManagerDelegate {
     func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
         switch peripheral.state {
         case .poweredOn:
+            requiresBluetoothPowerOnOrQuit = false
             if isSessionActive {
                 if isServicePublished {
                     recomputeStatus()
@@ -258,6 +267,22 @@ extension BLEPeripheralController: CBPeripheralManagerDelegate {
     private func handleBluetoothUnavailable(_ reason: BluetoothUnavailableReason) {
         teardownGATT()
         status = .bluetoothUnavailable(reason)
+
+        guard reason == .poweredOff else {
+            requiresBluetoothPowerOnOrQuit = false
+            return
+        }
+
+        // `CBPeripheralManagerOptionShowPowerAlertKey` asks iOS to show the native power-on
+        // prompt. Core Bluetooth does not report whether the person dismisses that alert, so
+        // wait briefly and require the same clean quit path as the app's power button if the
+        // manager is still off.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+            guard let self,
+                  self.isSessionActive,
+                  self.peripheralManager?.state == .poweredOff else { return }
+            self.requiresBluetoothPowerOnOrQuit = true
+        }
     }
 
     /// Recovers state after iOS kills the app process while backgrounded and relaunches it to
