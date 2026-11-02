@@ -4,6 +4,8 @@
 "status.connected_awaiting_id" = "Connected · awaiting ID…";
 "status.connected_id" = "Connected · ID %d";
 "status.bluetooth_off" = "Bluetooth is off";
+"bluetooth.power_on_required_title" = "Turn on Bluetooth";
+"bluetooth.power_on_required_message" = "Bluetooth must be enabled to use Protopanda Controller. The app will close if Bluetooth stays off.";
 "status.bluetooth_unauthorized" = "Bluetooth permission denied";
 "status.bluetooth_unsupported" = "This iPhone doesn't support BLE peripheral mode";
 "status.service_registration_failed" = "Failed to publish GATT service";

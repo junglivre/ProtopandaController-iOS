@@ -52,6 +52,19 @@ struct ContentView: View {
         } message: {
             Text("action.quit_app_message")
         }
+        .alert(
+            "bluetooth.power_on_required_title",
+            isPresented: Binding(
+                get: { bleController.requiresBluetoothPowerOnOrQuit },
+                set: { _ in }
+            )
+        ) {
+            Button("action.quit", role: .destructive) {
+                viewModel.quitApp()
+            }
+        } message: {
+            Text("bluetooth.power_on_required_message")
+        }
     }
 
     private var statusBar: some View {

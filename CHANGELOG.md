@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.1.0] - 2026-11-02
+
+### Added
+
+- Prompt to enable Bluetooth on launch: if Bluetooth is off, the app shows
+  iOS's native power-on alert and, if it stays off, a quit confirmation.
+
 ## [1.0.0] - 2026-10-12
 
 ### Added
